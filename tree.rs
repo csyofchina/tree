@@ -1,6 +1,6 @@
 use std::env;
 use std::path::Path;
-use std::fs;
+use std::fs::{self, DirEntry};
 
 struct Entry {
     name: String,
@@ -16,14 +16,26 @@ fn children(dir: &Path) -> Vec<Entry> {
     fs::read_dir(dir)
         .expect("unable to read dir")
         .into_iter()
-        .map(|e| e.expect("unable to get entry").path())
+        .map(|e| e.expect("unable to get entry"))
+        .filter(|e| is_not_hidden(e))
+        .map(|e| e.path())
         .map(|e| tree(&e))
         .collect()
 }
 
+fn is_not_hidden(entry: &DirEntry) -> bool {
+    entry
+         .file_name()
+         .to_str()
+         .map(|s| !s.starts_with("."))
+         .unwrap_or(false)
+}
+
 fn tree(path: &Path) -> Entry {
     Entry{
-        name: path.display().to_string(),
+        name: path.file_name()
+            .and_then(|name| name.to_str())
+            .map_or(String::from("."),|str| String::from(str)),
         children: if path.is_dir() {
             children(path)
         } else {
@@ -33,7 +45,7 @@ fn tree(path: &Path) -> Entry {
 }
 
 fn render_tree(tree: &Entry) -> Vec<String> {
-    let mut names = vec![String::from(&tree.name)];
+    let mut names = vec![tree.name.to_owned()];
     let children = &tree.children;
     let children: Vec<_> = children
         .iter()
@@ -48,14 +60,14 @@ fn render_tree(tree: &Entry) -> Vec<String> {
 }
 
 fn decorate(is_last: bool, children: Vec<String>) -> Vec<String> {
-    let i_branch = "│   ";
-    let t_branch = "├── "; 
-    let l_branch = "└── ";
-    let   spacer = "    ";
+    const I_BRANCH: &str = "│   ";
+    const T_BRANCH: &str = "├── "; 
+    const L_BRANCH: &str = "└── ";
+    const   SPACER: &str = "    ";
 
-    let prefix_first = if is_last { l_branch } else { t_branch };
+    let prefix_first = if is_last { L_BRANCH } else { T_BRANCH };
 
-    let prefix_rest = if is_last { spacer } else { i_branch };
+    let prefix_rest = if is_last { SPACER } else { I_BRANCH };
 
     let mut first = vec![format!("{}{}", prefix_first, children[0])];
 
